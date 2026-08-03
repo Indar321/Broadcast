@@ -126,7 +126,7 @@
   <div class="grid" id="grid"></div>
 
   <footer>
-    <p><b>WHAT THIS DOES:</b> pulls keywords from your text automatically, builds a title/caption/tags/board for whichever fields each platform actually uses, trims every field to that platform's real character limit, and — if you attach an image — center-crops a preview to each platform's standard post ratio (e.g. Instagram square, Pinterest vertical, YouTube 16:9 thumbnail). 100% offline, no AI, no network call, nothing to fail.</p>
+    <p><b>WHAT THIS DOES:</b> pulls keywords from your text automatically, builds a title/caption/tags/board for whichever fields each platform actually uses, and trims every field to that platform's real character limit — always cutting at the last full sentence or word, never mid-word, so the post reads clean. If you type just a short headline instead of full content, it auto-expands that into a complete platform-ready post rather than posting the bare title. If you attach an image it also center-crops a preview to each platform's standard ratio. 100% offline, no AI, no network call, nothing to fail.</p>
     <p style="margin-top:10px;"><b>WHAT THIS DOESN'T DO YET:</b> actually publish to your accounts or upload video to YouTube. Real posting needs each platform's official developer access connected on a backend — Meta's Graph API (Instagram/Facebook/Threads), the X API, LinkedIn's API, YouTube Data API, Pinterest API, and Reddit's API all require app registration + OAuth login per account. <b>Quora has no public posting API at all</b> — always manual. "MARK AS POSTED" is local tracking only.</p>
   </footer>
 </div>
@@ -220,9 +220,32 @@ function getKeywords(text, n){
   return Object.keys(freq).sort((a,b)=>freq[b]-freq[a]).slice(0,n);
 }
 
+// Trims at the last complete sentence if one fits; otherwise the last complete
+// word, so content always finishes cleanly instead of cutting mid-word.
 function truncateText(text, limit){
   if(text.length<=limit) return {text, trimmed:false, original:text.length};
-  return {text:text.slice(0, limit-1).trim()+'…', trimmed:true, original:text.length};
+  const sub = text.slice(0, limit);
+  const lastEnd = Math.max(sub.lastIndexOf('.'), sub.lastIndexOf('!'), sub.lastIndexOf('?'));
+  if(lastEnd > limit*0.4){
+    return {text: text.slice(0, lastEnd+1).trim(), trimmed:true, original:text.length};
+  }
+  let cut = sub.slice(0, limit-1);
+  const lastSpace = cut.lastIndexOf(' ');
+  if(lastSpace > 0) cut = cut.slice(0, lastSpace);
+  return {text: cut.trim()+'…', trimmed:true, original:text.length};
+}
+
+// Trims a comma-separated tag list to the last whole tag that fits, never a partial tag.
+function trimTagList(tagsArray, limit){
+  const full = tagsArray.join(', ');
+  if(full.length<=limit) return {text:full, trimmed:false, original:full.length};
+  let kept = [], str = '';
+  for(const t of tagsArray){
+    const candidate = kept.length ? str+', '+t : t;
+    if(candidate.length>limit) break;
+    kept.push(t); str = candidate;
+  }
+  return {text:str, trimmed:true, original:full.length};
 }
 
 function makeTitle(text, maxWords){
@@ -232,12 +255,36 @@ function makeTitle(text, maxWords){
   return words;
 }
 
+// A short, single-idea input (like just a headline) gets expanded into a full
+// platform-appropriate post instead of being posted bare.
+function isTitleOnly(raw){
+  const wordCount = raw.trim().split(/\s+/).length;
+  const sentenceCount = (raw.match(/[.!?]+/g)||[]).length;
+  return wordCount <= 12 && sentenceCount <= 1;
+}
+
+function expandFromTitle(title, key){
+  switch(key){
+    case 'instagram': return `${title} ✨\n\nHere's a closer look at how it came together — every detail considered, from concept through to final execution.`;
+    case 'x': return `${title} — here's a quick look at how it came together.`;
+    case 'facebook': return `${title}\n\nWe're excited to share this with you. Here's a bit more about what went into making it happen.`;
+    case 'threads': return `${title}\n\nMore behind this soon — stay tuned.`;
+    case 'linkedin': return `${title}\n\nProud to share this. Here's a look at the thinking and process behind it, and what it took to bring it to life.`;
+    case 'youtube': return `${title}\n\nIn this one, we walk through the full process from start to finish. Watch till the end for the complete story.`;
+    case 'pinterest': return `${title} — save this for later.`;
+    case 'quora': return `${title} is worth unpacking. Here's a closer look at the background, the approach taken, and what made the outcome work.`;
+    case 'reddit': return `${title}\n\nWanted to share this with the community here — happy to answer any questions in the comments.`;
+    default: return title;
+  }
+}
+
 function buildAll(raw){
   const keywords = getKeywords(raw, 10);
   const hashtags = (keywords.length ? keywords : ['update','news']);
   const topKeyword = keywords[0] || 'business';
   const baseTitle = makeTitle(raw, 14);
   const questionTitle = /\?$/.test(baseTitle) ? baseTitle : `What's the story behind ${topKeyword}?`;
+  const titleOnly = isTitleOnly(raw);
 
   const result = {};
   PLATFORMS.forEach(p=>{
@@ -247,16 +294,22 @@ function buildAll(raw){
       entry.title = truncateText(t, p.titleLimit);
     }
     if(p.fields.includes('caption')){
-      let capRaw = raw;
-      if(p.key==='instagram') capRaw = raw + '\n\n' + hashtags.slice(0,8).map(h=>'#'+h).join(' ');
-      entry.caption = truncateText(capRaw, p.captionLimit);
+      let capRaw = titleOnly ? expandFromTitle(raw, p.key) : raw;
+      if(p.key==='instagram'){
+        const tagStr = '\n\n' + hashtags.slice(0,8).map(h=>'#'+h).join(' ');
+        const room = Math.max(0, p.captionLimit - tagStr.length);
+        const bodyTrim = truncateText(capRaw, room);
+        entry.caption = {text: bodyTrim.text + tagStr, trimmed: bodyTrim.trimmed, original: bodyTrim.original + tagStr.length};
+      } else {
+        entry.caption = truncateText(capRaw, p.captionLimit);
+      }
     }
     if(p.fields.includes('description')){
-      entry.description = truncateText(raw, p.captionLimit);
+      let descRaw = titleOnly ? expandFromTitle(raw, p.key) : raw;
+      entry.description = truncateText(descRaw, p.captionLimit);
     }
     if(p.fields.includes('tags')){
-      let tagStr = hashtags.slice(0,10).join(', ');
-      entry.tags = truncateText(tagStr, p.tagsLimit);
+      entry.tags = trimTagList(hashtags.slice(0,10), p.tagsLimit);
     }
     if(p.fields.includes('hashtags')){
       entry.hashtags = hashtags.slice(0, p.key==='pinterest'?10:8);
@@ -335,7 +388,8 @@ function generateAll(){
     const parsed = buildAll(raw);
     generated = parsed;
     renderResults(parsed);
-    statusLine.textContent = 'DONE — 9/9 VERSIONS GENERATED' + (uploadedImage ? ' · IMAGE CROPPED PER PLATFORM' : ' · TEXT ONLY');
+    const expandNote = isTitleOnly(raw) ? ' · SHORT INPUT AUTO-EXPANDED INTO FULL POSTS' : '';
+    statusLine.textContent = 'DONE — 9/9 VERSIONS GENERATED' + (uploadedImage ? ' · IMAGE CROPPED PER PLATFORM' : ' · TEXT ONLY') + expandNote;
   }catch(err){
     console.error(err);
     statusLine.textContent = 'ERR: ' + err.message;
