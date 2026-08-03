@@ -224,8 +224,6 @@
   </header>
 
   <div class="composer">
-    <label>GEMINI API KEY (FREE — GET ONE AT <a href="https://aistudio.google.com/apikey" target="_blank" style="color:inherit;">aistudio.google.com/apikey</a>)</label>
-    <input type="password" id="apiKey" placeholder="Paste your Gemini API key here" style="width:100%;border:none;border-bottom:2px solid var(--linelight);font-family:'JetBrains Mono',monospace;font-size:14px;padding:10px 0;outline:none;margin-bottom:22px;">
     <label>RAW CONTENT / TOPIC</label>
     <textarea id="input" placeholder="Paste your update, announcement, or idea here. e.g. 'DIGITALTRADE just finished a full brand identity for a water purifier client in Raipur — new logo system, packaging, and a launch site.'"></textarea>
     <div class="composer-foot">
@@ -238,9 +236,8 @@
   <div class="grid" id="grid"></div>
 
   <footer>
-    <p><b>WHAT THIS DOES:</b> your Gemini API key runs live in your browser, rewriting your content for Instagram, X, Facebook, Threads, LinkedIn, Quora, and Reddit — matching each platform's tone, length limit, and format conventions. Free tier covers this easily.</p>
-    <p style="margin-top:10px;"><b>YOUR KEY IS PRIVATE:</b> it's typed into this page and sent only to Google's API — never to Anthropic, never saved anywhere. Re-paste it each time you open the file.</p>
-    <p style="margin-top:10px;"><b>WHAT THIS DOESN'T DO YET:</b> actually publish to your accounts. Real posting needs each platform's official developer access connected on a backend — Meta's Graph API (Instagram/Facebook/Threads), the X API, LinkedIn's API, and Reddit's API all require app registration + OAuth login per account, which isn't something a single browser file can do securely. <b>Quora has no public posting API at all</b> — content there has to go up manually regardless. The "MARK AS POSTED" buttons below are local tracking, not live publishing.</p>
+    <p><b>WHAT THIS DOES:</b> pulls keywords from your text automatically and reformats it per platform — trims to each platform's character limit, builds Instagram hashtags, and turns your content into question-style titles for Quora and Reddit. 100% offline, no AI, no network call, so nothing to fail.</p>
+    <p style="margin-top:10px;"><b>WHAT THIS DOESN'T DO YET:</b> actually publish to your accounts. Real posting needs each platform's official developer access connected on a backend — Meta's Graph API (Instagram/Facebook/Threads), the X API, LinkedIn's API, and Reddit's API all require app registration + OAuth login per account. <b>Quora has no public posting API at all</b> — content there has to go up manually regardless. The "MARK AS POSTED" buttons below are local tracking, not live publishing.</p>
   </footer>
 </div>
 
@@ -289,71 +286,68 @@ input.addEventListener('input', ()=>{
 
 let generated = {};
 
-async function generateAll(){
+const STOPWORDS = new Set(["the","and","for","with","that","this","from","have","just","are","was","were","been","has","had","its","its","a","an","to","of","in","on","at","is","as","by","or","be","we","our","your","you","i","will","can","also","into","more","than","when","then","they","them","his","her","she","he","not","but","all","out","about","after","over","new","get","got","who","what","how"]);
+
+function getKeywords(text, n){
+  const words = text.toLowerCase().replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w=>w.length>3 && !STOPWORDS.has(w));
+  const freq = {};
+  words.forEach(w=>{freq[w]=(freq[w]||0)+1;});
+  return Object.keys(freq).sort((a,b)=>freq[b]-freq[a]).slice(0,n);
+}
+
+function truncateText(text, limit){
+  if(text.length<=limit) return text;
+  return text.slice(0, limit-1).trim()+'…';
+}
+
+function makeTitle(text, maxWords){
+  const firstSentence = text.split(/[.!?\n]/)[0].trim();
+  let words = firstSentence.split(/\s+/).slice(0, maxWords).join(' ');
+  if(!words) words = text.slice(0,60);
+  if(!/[?.!]$/.test(words)) words += (/^(what|how|why|who|when|which|is|are|can|does|did)\b/i.test(words) ? '?' : '');
+  return words;
+}
+
+function buildAll(raw){
+  const keywords = getKeywords(raw, 6);
+  const hashtags = keywords.length ? keywords : ['update','news'];
+  const topKeyword = keywords[0] || 'business';
+
+  const instagramBody = raw + '\n\n' + hashtags.slice(0,6).map(h=>'#'+h).join(' ');
+  const xBody = truncateText(raw, 280);
+  const facebookBody = truncateText(raw, 2000);
+  const threadsBody = truncateText(raw, 500);
+  const linkedinBody = truncateText(raw, 3000);
+  const quoraTitle = makeTitle(raw.replace(/^(what|how|why)\b/i,'').trim(), 14) || 'What should you know about this?';
+  const quoraQuestion = /\?$/.test(quoraTitle) ? quoraTitle : `What's the story behind ${topKeyword}?`;
+  const redditTitle = makeTitle(raw, 16);
+
+  return {
+    instagram: { text: truncateText(instagramBody, 2200), hashtags: hashtags.slice(0,6) },
+    x: { text: xBody },
+    facebook: { text: facebookBody },
+    threads: { text: threadsBody },
+    linkedin: { text: linkedinBody },
+    quora: { title: quoraQuestion, text: raw },
+    reddit: { title: redditTitle, text: raw, subreddit_suggestion: topKeyword }
+  };
+}
+
+function generateAll(){
   const raw = input.value.trim();
-  const apiKey = document.getElementById('apiKey').value.trim();
-  if(!apiKey){
-    statusLine.textContent = 'ERR: PASTE YOUR GEMINI API KEY FIRST';
-    return;
-  }
   if(!raw){
     statusLine.textContent = 'ERR: NO CONTENT PROVIDED';
     return;
   }
-  genBtn.disabled = true;
-  genBtn.textContent = 'TRANSMITTING...';
-  statusLine.textContent = 'CONTACTING SIGNAL PROCESSOR...';
-
-  const systemPrompt = `You are a social media content adapter. Given raw content from a design studio called DIGITALTRADE, rewrite it natively for 7 platforms: instagram, x, facebook, threads, linkedin, quora, reddit.
-
-Rules per platform:
-- instagram: casual, visual, engaging, light emoji use, ends with 5-8 relevant hashtags as a separate array. Under 2200 chars.
-- x: punchy, under 280 chars total, no hashtag spam (0-2 max).
-- facebook: conversational, slightly longer, friendly tone, under 2000 chars.
-- threads: casual and direct, conversational, under 500 chars.
-- linkedin: professional, value-driven, industry framing, under 3000 chars but ideally under 1300.
-- quora: needs a "title" framed as a question this content answers, plus a helpful informative "text" body written like a genuine answer, not an ad.
-- reddit: needs a "title", a "text" body written in authentic non-marketing community voice, and a "subreddit_suggestion" (a real relevant subreddit name, no r/ prefix needed in the value, just the name).
-
-Return ONLY valid JSON, no markdown fences, no preamble, in this exact shape:
-{
-  "instagram": {"text": "...", "hashtags": ["...", "..."]},
-  "x": {"text": "..."},
-  "facebook": {"text": "..."},
-  "threads": {"text": "..."},
-  "linkedin": {"text": "..."},
-  "quora": {"title": "...", "text": "..."},
-  "reddit": {"title": "...", "text": "...", "subreddit_suggestion": "..."}
-}`;
-
+  statusLine.textContent = 'FORMATTING...';
   try{
-    const endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + encodeURIComponent(apiKey);
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ parts: [{ text: raw }] }],
-        generationConfig: { responseMimeType: "application/json" }
-      })
-    });
-    if(!response.ok){
-      const errBody = await response.json().catch(()=>({}));
-      throw new Error(errBody?.error?.message || ('HTTP ' + response.status));
-    }
-    const data = await response.json();
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    let clean = rawText.replace(/```json|```/g,'').trim();
-    const parsed = JSON.parse(clean);
+    const parsed = buildAll(raw);
     generated = parsed;
     renderResults(parsed);
-    statusLine.textContent = 'DONE — 7/7 VERSIONS GENERATED';
+    statusLine.textContent = 'DONE — 7/7 VERSIONS GENERATED (NO AI, RULE-BASED)';
   }catch(err){
     console.error(err);
     statusLine.textContent = 'ERR: ' + err.message;
-  }finally{
-    genBtn.disabled = false;
-    genBtn.innerHTML = 'GENERATE FOR ALL PLATFORMS <span class="arrow">→</span>';
   }
 }
 
