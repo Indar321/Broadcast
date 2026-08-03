@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BROADCAST — DIGITALTRADE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Roboto+Condensed:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#0a0a0a;
+    --white:#ffffff;
+    --line:#2a2a2a;
+    --linelight:#e2e2e2;
+    --signal:#c4f135; /* single accent: circuit lime */
+    --gray:#8a8a8a;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    background:var(--white);
+    color:var(--black);
+    font-family:'Roboto Condensed',sans-serif;
+    letter-spacing:0.02em;
+    line-height:1.35;
+    overflow-x:hidden;
+  }
+  .bgtext{
+    position:fixed;
+    top:6vh;left:-4vw;
+    font-family:'Bebas Neue',sans-serif;
+    font-size:22vw;
+    color:var(--black);
+    opacity:0.035;
+    white-space:nowrap;
+    letter-spacing:0.02em;
+    z-index:0;
+    pointer-events:none;
+    user-select:none;
+  }
+  .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:56px 28px 120px;}
+
+  header{border-bottom:3px solid var(--black);padding-bottom:28px;margin-bottom:36px;}
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.25em;
+    color:var(--gray);
+    text-transform:uppercase;
+    margin-bottom:14px;
+    display:flex;align-items:center;gap:10px;
+  }
+  .dot{width:8px;height:8px;background:var(--signal);border-radius:50%;box-shadow:0 0 8px var(--signal);}
+  h1{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:clamp(48px,9vw,110px);
+    letter-spacing:0.04em;
+    line-height:0.92;
+  }
+  .sub{
+    font-size:17px;
+    color:#333;
+    max-width:560px;
+    margin-top:14px;
+    letter-spacing:0.02em;
+  }
+
+  .composer{
+    border:3px solid var(--black);
+    padding:28px;
+    margin-bottom:20px;
+  }
+  .composer label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.2em;
+    text-transform:uppercase;
+    color:var(--gray);
+    display:block;
+    margin-bottom:10px;
+  }
+  textarea{
+    width:100%;
+    min-height:130px;
+    border:none;
+    border-bottom:2px solid var(--linelight);
+    font-family:'Roboto Condensed',sans-serif;
+    font-size:18px;
+    letter-spacing:0.01em;
+    resize:vertical;
+    padding:8px 0;
+    outline:none;
+  }
+  textarea:focus{border-bottom-color:var(--black);}
+  .composer-foot{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:18px;
+    flex-wrap:wrap;
+    gap:14px;
+  }
+  .charcount{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--gray);}
+  button.tx{
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;
+    letter-spacing:0.15em;
+    text-transform:uppercase;
+    background:var(--black);
+    color:var(--white);
+    border:none;
+    padding:15px 28px;
+    cursor:pointer;
+    display:flex;align-items:center;gap:10px;
+    transition:background 0.15s ease;
+  }
+  button.tx:hover{background:#1a1a1a;}
+  button.tx:disabled{background:#ccc;cursor:not-allowed;}
+  button.tx .arrow{color:var(--signal);}
+
+  .status-line{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--gray);
+    margin:6px 0 40px;
+    min-height:16px;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+    gap:0;
+    border-top:2px solid var(--black);
+    border-left:2px solid var(--black);
+  }
+  .card{
+    border-right:2px solid var(--black);
+    border-bottom:2px solid var(--black);
+    padding:22px;
+    display:flex;
+    flex-direction:column;
+    min-height:260px;
+  }
+  .card-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:14px;
+  }
+  .platform-tag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.15em;
+    text-transform:uppercase;
+    padding:4px 8px;
+    border:1.5px solid var(--black);
+  }
+  .limit-meter{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    color:var(--gray);
+    text-align:right;
+  }
+  .limit-bar{
+    width:70px;height:4px;background:var(--linelight);
+    margin-top:4px;position:relative;overflow:hidden;
+  }
+  .limit-fill{height:100%;background:var(--black);transition:width 0.3s ease;}
+  .limit-fill.over{background:#d43;}
+
+  .card-body{flex:1;font-size:15px;white-space:pre-wrap;letter-spacing:0.01em;color:#111;}
+  .card-title{font-weight:700;margin-bottom:6px;}
+  .placeholder{color:#b8b8b8;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.1em;}
+
+  .card-foot{
+    display:flex;
+    gap:10px;
+    margin-top:16px;
+    padding-top:14px;
+    border-top:1px solid var(--linelight);
+  }
+  .mini-btn{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    background:none;
+    border:1.5px solid var(--black);
+    padding:8px 12px;
+    cursor:pointer;
+    flex:1;
+    transition:all 0.15s ease;
+  }
+  .mini-btn:hover{background:var(--black);color:var(--white);}
+  .mini-btn.posted{background:var(--signal);border-color:var(--signal);color:var(--black);}
+  .mini-btn:disabled{opacity:0.35;cursor:not-allowed;}
+
+  footer{
+    margin-top:48px;
+    border-top:3px solid var(--black);
+    padding-top:22px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--gray);
+    line-height:1.7;
+  }
+  footer b{color:var(--black);}
+  footer a{color:var(--black);}
+
+  @media (max-width:600px){
+    .grid{grid-template-columns:1fr;}
+    .composer-foot{flex-direction:column;align-items:stretch;}
+    button.tx{justify-content:center;}
+  }
+</style>
+</head>
+<body>
+<div class="bgtext">SIGNAL</div>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow"><span class="dot"></span>DIGITALTRADE — CONTENT OPS</div>
+    <h1>BROADCAST</h1>
+    <p class="sub">One message in. Seven platform-native versions out — tone, length, and format matched to each channel automatically.</p>
+  </header>
+
+  <div class="composer">
+    <label>RAW CONTENT / TOPIC</label>
+    <textarea id="input" placeholder="Paste your update, announcement, or idea here. e.g. 'DIGITALTRADE just finished a full brand identity for a water purifier client in Raipur — new logo system, packaging, and a launch site.'"></textarea>
+    <div class="composer-foot">
+      <div class="charcount" id="charcount">0 CHARACTERS</div>
+      <button class="tx" id="genBtn" onclick="generateAll()">GENERATE FOR ALL PLATFORMS <span class="arrow">→</span></button>
+    </div>
+  </div>
+  <div class="status-line" id="statusLine"></div>
+
+  <div class="grid" id="grid"></div>
+
+  <footer>
+    <p><b>WHAT THIS DOES:</b> rewrites your content for Instagram, X, Facebook, Threads, LinkedIn, Quora, and Reddit — matching each platform's tone, length limit, and format conventions.</p>
+    <p style="margin-top:10px;"><b>WHAT THIS DOESN'T DO YET:</b> actually publish to your accounts. Real posting needs each platform's official developer access connected on the backend — Meta's Graph API (Instagram/Facebook/Threads), the X API, LinkedIn's API, and Reddit's API all require app registration + OAuth login per account. <b>Quora has no public posting API at all</b> — content there has to be posted manually. The "MARK AS POSTED" buttons below are local tracking, not live publishing.</p>
+  </footer>
+</div>
+
+<script>
+const PLATFORMS = [
+  {key:"instagram", label:"INSTAGRAM", limit:2200},
+  {key:"x", label:"X", limit:280},
+  {key:"facebook", label:"FACEBOOK", limit:2000},
+  {key:"threads", label:"THREADS", limit:500},
+  {key:"linkedin", label:"LINKEDIN", limit:3000},
+  {key:"quora", label:"QUORA", limit:5000},
+  {key:"reddit", label:"REDDIT", limit:10000},
+];
+
+const grid = document.getElementById('grid');
+const input = document.getElementById('input');
+const charcount = document.getElementById('charcount');
+const statusLine = document.getElementById('statusLine');
+const genBtn = document.getElementById('genBtn');
+
+function renderEmptyCards(){
+  grid.innerHTML = '';
+  PLATFORMS.forEach(p=>{
+    const card = document.createElement('div');
+    card.className='card';
+    card.id = 'card-'+p.key;
+    card.innerHTML = `
+      <div class="card-head">
+        <div class="platform-tag">${p.label}</div>
+        <div class="limit-meter">0 / ${p.limit}<div class="limit-bar"><div class="limit-fill" style="width:0%"></div></div></div>
+      </div>
+      <div class="card-body"><div class="placeholder">AWAITING INPUT...</div></div>
+      <div class="card-foot">
+        <button class="mini-btn" disabled onclick="copyText('${p.key}')">COPY</button>
+        <button class="mini-btn" disabled onclick="togglePosted('${p.key}')" id="postbtn-${p.key}">MARK POSTED</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+renderEmptyCards();
+
+input.addEventListener('input', ()=>{
+  charcount.textContent = input.value.length + ' CHARACTERS';
+});
+
+let generated = {};
+
+async function generateAll(){
+  const raw = input.value.trim();
+  if(!raw){
+    statusLine.textContent = 'ERR: NO CONTENT PROVIDED';
+    return;
+  }
+  genBtn.disabled = true;
+  genBtn.textContent = 'TRANSMITTING...';
+  statusLine.textContent = 'CONTACTING SIGNAL PROCESSOR...';
+
+  const systemPrompt = `You are a social media content adapter. Given raw content from a design studio called DIGITALTRADE, rewrite it natively for 7 platforms: instagram, x, facebook, threads, linkedin, quora, reddit.
+
+Rules per platform:
+- instagram: casual, visual, engaging, light emoji use, ends with 5-8 relevant hashtags as a separate array. Under 2200 chars.
+- x: punchy, under 280 chars total, no hashtag spam (0-2 max).
+- facebook: conversational, slightly longer, friendly tone, under 2000 chars.
+- threads: casual and direct, conversational, under 500 chars.
+- linkedin: professional, value-driven, industry framing, under 3000 chars but ideally under 1300.
+- quora: needs a "title" framed as a question this content answers, plus a helpful informative "text" body written like a genuine answer, not an ad.
+- reddit: needs a "title", a "text" body written in authentic non-marketing community voice, and a "subreddit_suggestion" (a real relevant subreddit name, no r/ prefix needed in the value, just the name).
+
+Return ONLY valid JSON, no markdown fences, no preamble, in this exact shape:
+{
+  "instagram": {"text": "...", "hashtags": ["...", "..."]},
+  "x": {"text": "..."},
+  "facebook": {"text": "..."},
+  "threads": {"text": "..."},
+  "linkedin": {"text": "..."},
+  "quora": {"title": "...", "text": "..."},
+  "reddit": {"title": "...", "text": "...", "subreddit_suggestion": "..."}
+}`;
+
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [{ role: "user", content: raw }]
+      })
+    });
+    const data = await response.json();
+    const textBlock = data.content.find(c=>c.type==='text');
+    let clean = textBlock.text.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(clean);
+    generated = parsed;
+    renderResults(parsed);
+    statusLine.textContent = 'DONE — 7/7 VERSIONS GENERATED';
+  }catch(err){
+    console.error(err);
+    statusLine.textContent = 'ERR: GENERATION FAILED — TRY AGAIN';
+  }finally{
+    genBtn.disabled = false;
+    genBtn.innerHTML = 'GENERATE FOR ALL PLATFORMS <span class="arrow">→</span>';
+  }
+}
+
+function renderResults(data){
+  PLATFORMS.forEach(p=>{
+    const card = document.getElementById('card-'+p.key);
+    const d = data[p.key];
+    if(!d){ return; }
+    let bodyText = d.text || '';
+    let extra = '';
+    if(p.key==='instagram' && d.hashtags){
+      extra = '\n\n' + d.hashtags.map(h=>'#'+h.replace(/^#/,'')).join(' ');
+    }
+    let titleHtml = '';
+    if(d.title){
+      titleHtml = `<div class="card-title">${escapeHtml(d.title)}</div>`;
+    }
+    if(p.key==='reddit' && d.subreddit_suggestion){
+      titleHtml += `<div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--gray);margin-bottom:8px;">SUGGESTED: r/${escapeHtml(d.subreddit_suggestion)}</div>`;
+    }
+    const fullText = bodyText + extra;
+    const len = fullText.length;
+    const pct = Math.min(100, Math.round((len/p.limit)*100));
+    const over = len > p.limit;
+
+    card.querySelector('.card-body').innerHTML = titleHtml + `<div>${escapeHtml(fullText)}</div>`;
+    card.querySelector('.limit-meter').innerHTML = `${len} / ${p.limit}<div class="limit-bar"><div class="limit-fill ${over?'over':''}" style="width:${pct}%"></div></div>`;
+
+    const btns = card.querySelectorAll('.mini-btn');
+    btns.forEach(b=>b.disabled=false);
+  });
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function copyText(key){
+  const d = generated[key];
+  if(!d) return;
+  let text = d.title ? d.title + '\n\n' + d.text : d.text;
+  if(key==='instagram' && d.hashtags){
+    text += '\n\n' + d.hashtags.map(h=>'#'+h.replace(/^#/,'')).join(' ');
+  }
+  navigator.clipboard.writeText(text).then(()=>{
+    statusLine.textContent = key.toUpperCase() + ' COPIED TO CLIPBOARD';
+  });
+}
+
+const postedState = {};
+function togglePosted(key){
+  postedState[key] = !postedState[key];
+  const btn = document.getElementById('postbtn-'+key);
+  if(postedState[key]){
+    btn.textContent = 'POSTED ✓';
+    btn.classList.add('posted');
+  }else{
+    btn.textContent = 'MARK POSTED';
+    btn.classList.remove('posted');
+  }
+}
+</script>
+</body>
+</html>
